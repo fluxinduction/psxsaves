@@ -1,0 +1,46 @@
+name: Export GameShark V5 binary as hex
+
+on:
+  push:
+    paths:
+      - ".github/workflows/dump-gsfive.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hex-dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Generate byte-preserving hexadecimal dump
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          source = Path(".github/workflows/GSfive.txt")
+          data = source.read_bytes()
+          with Path("GSfive.hex").open("w", encoding="ascii", newline="\n") as out:
+              for offset in range(0, len(data), 16):
+                  chunk = data[offset:offset + 16]
+                  out.write(f"{offset:08X}  " + " ".join(f"{b:02X}" for b in chunk) + "\n")
+          Path("GSfive-info.txt").write_text(
+              f"file={source.name}\nsize={len(data)}\nsha256={hashlib.sha256(data).hexdigest()}\n",
+              encoding="ascii"
+          )
+          print(f"Created hex dump for {len(data)} bytes")
+
+      - name: Upload hex dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsfive-hex-dump
+          path: |
+            GSfive.hex
+            GSfive-info.txt
+          if-no-files-found: error
+          retention-days: 7
